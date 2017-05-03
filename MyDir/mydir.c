@@ -1,26 +1,36 @@
+// Kainoa Seto
+// MyDir OS program that replicates the basic functionality of the MSDOS DIR
+// This file contains all the implementation of the program
+// 5/4/17
+// mydir.c
 #include "mydir.h"
 
-int list_directories(char* path, BOOL longName)
+int list__dir(char* path, BOOL longName)
 {
-	ULONG				filesize;
-	char*				trim;
-	HANDLE				hFind;
-	WIN32_FIND_DATA		found;
-	char				pattern[MAX_PATH];
-	SYSTEMTIME          stUTC, stLocal;
-	DWORD				attr;
+	ULONG				filesize;			// Filesize of current item found
+	HANDLE				hFind;				// File handle of current item found
+	WIN32_FIND_DATA		found;				// File/dir data and attributes if found
+	char				pattern[MAX_PATH];	// Search pattern based on path input
+	SYSTEMTIME          stUTC, stLocal;		// Different times for fomratting of longname
+	DWORD				attr;				// attributes of current file found
 
+	// If we are looking for a file/dir and have given input that is not the current directory
+	// and that we can navigate to without any issue, just print out everything in the directory
 	if (strcmp(path, "") != 0 &&
 		path[strlen(path) - 1] != ':' &&
-		path[strlen(path) - 1] != '\\' &&
 		SetCurrentDirectory(path)) 
 	{
 		strcpy_s(pattern, MAX_PATH, "*.*");
 	}
 	else
 	{
+		// Copy the pattern from the path since it may contain wild cards already
 		strcpy_s(pattern, MAX_PATH, path);
 
+		// If no file exists and either no directory exists and the pattern does not contain a '\' 
+		// for the last character or there are no wildcards in the pattern....
+		// Then we need to add our universal wildcard to the end of the pattern to catch all
+		// partial directories and files
 		if (!file_exists(pattern) && 
 				(
 					(!directory_exists(pattern) && pattern[strlen(pattern) - 1] != '\\' ) ||
@@ -37,18 +47,22 @@ int list_directories(char* path, BOOL longName)
 			if (strcmp(path, "") != 0 && !SetCurrentDirectory(path))
 			{
 				printf("Error: The directory specified does not exist\n");
-				exit(1);
+				return 1;
 			}
 		}
 	}
 
+	// Find the first file and as long as we find a file, start the search loop
 	hFind = FindFirstFile(pattern, &found);
 	if (hFind != INVALID_HANDLE_VALUE)
 	{
+		// Search loop
 		do {
+			// Exclude the directory shortcuts
 			if (strcmp(found.cFileName, ".") != 0 &&
 				strcmp(found.cFileName, "..") != 0)
 			{
+				// If it sa longname print out the filesize, attributes, and last File Write time in local system time
 				if (longName)
 				{
 					filesize = (found.nFileSizeHigh * (MAXDWORD + 1)) + found.nFileSizeLow;
@@ -64,6 +78,7 @@ int list_directories(char* path, BOOL longName)
 						(attr & FILE_ATTRIBUTE_HIDDEN) ? 'H' : ' ',
 						(attr & FILE_ATTRIBUTE_READONLY) ? 'R' : ' ');
 				}
+				// Always print the filename/dirname
 				printf("%s\n", found.cFileName);
 			}
 		} while (FindNextFile(hFind, &found));
@@ -77,6 +92,7 @@ BOOL directory_exists(char* path)
 {
 	WIN32_FIND_DATA data;
 	HANDLE handle = FindFirstFile(path, &data);
+	// Make sure we found a valid find and that it is a directory
 	BOOL found = (handle != INVALID_HANDLE_VALUE &&
 		(data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY));
 	if (found)
@@ -90,6 +106,7 @@ BOOL file_exists(char* path)
 {
 	WIN32_FIND_DATA data;
 	HANDLE handle = FindFirstFile(path, &data);
+	// If we found a valid find and it is not a directory then it must be a file
 	BOOL found = (handle != INVALID_HANDLE_VALUE &&
 					!(data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY));
 	if (found)

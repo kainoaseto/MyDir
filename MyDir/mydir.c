@@ -27,28 +27,15 @@ int list__dir(char* path, BOOL longName)
 		// Copy the pattern from the path since it may contain wild cards already
 		strcpy_s(pattern, MAX_PATH, path);
 
-		// If no file exists and either no directory exists and the pattern does not contain a '\' 
-		// for the last character or there are no wildcards in the pattern....
-		// Then we need to add our universal wildcard to the end of the pattern to catch all
-		// partial directories and files
-		if (!file_exists(pattern) && 
-				(
-					(!directory_exists(pattern) && pattern[strlen(pattern) - 1] != '\\' ) ||
-					( strstr(pattern, "*") == NULL && strstr(pattern, "?") == NULL )
-				)
-		   )
-		{
-			strcat_s(pattern, MAX_PATH, "*.*");
-		}
-
-		// Check if any partial directories or files exist
-		if (!file_exists(pattern) && !directory_exists(pattern))
+		if (!file_exists(pattern))
 		{
 			if (strcmp(path, "") != 0 && !SetCurrentDirectory(path))
 			{
-				printf("Error: The directory specified does not exist\n");
+				printf("Error: The file does not exist\n");
 				return 1;
 			}
+
+			strcat_s(pattern, MAX_PATH, "*.*");
 		}
 	}
 

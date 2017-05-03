@@ -7,68 +7,41 @@ int list_directories(char* path, BOOL longName)
 	HANDLE				hFind;
 	WIN32_FIND_DATA		found;
 	char				pattern[MAX_PATH];
-	char				origPath[MAX_PATH];
 	SYSTEMTIME          stUTC, stLocal;
+	DWORD				attr;
 
-	printf("Path: %s\n", path);
-	GetCurrentDirectory(MAX_PATH, origPath);
-
-	if (SetCurrentDirectory(path)) {
-		strcat_s(path, MAX_PATH, "\\");
-		SetCurrentDirectory(origPath);
-		
-	}
-
-	strcpy_s(pattern, MAX_PATH, path);
-
-	// Auto trim path to remove any file  or wildcard reference
-	if (strstr(path, "*") != NULL || strstr(path, "?") != NULL)
-	{ 
-		trim = strrchr(path, '\\');
-		if (trim != NULL)
-		{
-			trim++;
-			*trim = '\0';
-		}
-	}
-	
-
-	// Check if the directory exists
-	if (file_exists(path))
-	{
-		if (strcmp(path, "") != 0 && !SetCurrentDirectory(path))
-		{
-			printf("Error: The directory specified does not exist\n");
-			exit(1);
-		}
-	}
-	
-
-	GetCurrentDirectory(MAX_PATH, path);
-
-	// Check if we need to add a \ to the end of the path
 	if (strcmp(path, "") != 0 &&
 		path[strlen(path) - 1] != ':' &&
 		path[strlen(path) - 1] != '\\' &&
-		directory_exists(path))
+		SetCurrentDirectory(path)) 
 	{
-		strcat_s(path, MAX_PATH, "\\");
+		strcpy_s(pattern, MAX_PATH, "*.*");
+	}
+	else
+	{
+		strcpy_s(pattern, MAX_PATH, path);
+
+		if (!file_exists(pattern) && 
+				(
+					(!directory_exists(pattern) && pattern[strlen(pattern) - 1] != '\\' ) ||
+					( strstr(pattern, "*") == NULL && strstr(pattern, "?") == NULL )
+				)
+		   )
+		{
+			strcat_s(pattern, MAX_PATH, "*.*");
+		}
+
+		// Check if any partial directories or files exist
+		if (!file_exists(pattern) && !directory_exists(pattern))
+		{
+			if (strcmp(path, "") != 0 && !SetCurrentDirectory(path))
+			{
+				printf("Error: The directory specified does not exist\n");
+				exit(1);
+			}
+		}
 	}
 
-	printf("NewPath: %s\n", path);
-
-	if (directory_exists(pattern))
-	{
-		strcat_s(pattern, MAX_PATH, "\\");
-	}
-
-	if ((strstr(path, "*") == NULL || strstr(path, "?") == NULL) &&
-		!file_exists(path))
-	{
-		strcat_s(pattern, MAX_PATH, "*.*");
-	}
-
-	printf("Pattern: %s\n", pattern);
 	hFind = FindFirstFile(pattern, &found);
 	if (hFind != INVALID_HANDLE_VALUE)
 	{
@@ -79,13 +52,17 @@ int list_directories(char* path, BOOL longName)
 				if (longName)
 				{
 					filesize = (found.nFileSizeHigh * (MAXDWORD + 1)) + found.nFileSizeLow;
-					//found.dwFileAttributes;
+					attr = found.dwFileAttributes;
 					FileTimeToSystemTime(&found.ftLastWriteTime, &stUTC);
 					SystemTimeToTzSpecificLocalTime(NULL, &stUTC, &stLocal);
 
-					printf("%d-%02d-%02d  %02d:%02d    %10u        %s", 
+					printf("%d-%02d-%02d  %02d:%02d    %10u    [%c%c%c%c]   ", 
 						stLocal.wYear, stLocal.wMonth, stLocal.wDay,
-						stLocal.wHour, stLocal.wMinute, filesize, path);
+						stLocal.wHour, stLocal.wMinute, filesize, 
+						(attr & FILE_ATTRIBUTE_ARCHIVE) ? 'A' : ' ',
+						(attr & FILE_ATTRIBUTE_SYSTEM) ? 'S' : ' ',
+						(attr & FILE_ATTRIBUTE_HIDDEN) ? 'H' : ' ',
+						(attr & FILE_ATTRIBUTE_READONLY) ? 'R' : ' ');
 				}
 				printf("%s\n", found.cFileName);
 			}
@@ -98,20 +75,25 @@ int list_directories(char* path, BOOL longName)
 
 BOOL directory_exists(char* path)
 {
-	DWORD dwAttrib = GetFileAttributes(path);
-
-	return (dwAttrib != INVALID_FILE_ATTRIBUTES &&
-			(dwAttrib & FILE_ATTRIBUTE_DIRECTORY));
+	WIN32_FIND_DATA data;
+	HANDLE handle = FindFirstFile(path, &data);
+	BOOL found = (handle != INVALID_HANDLE_VALUE &&
+		(data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY));
+	if (found)
+	{
+		FindClose(handle);
+	}
+	return found;
 }
 
 BOOL file_exists(char* path)
 {
-	WIN32_FIND_DATA FindFileData;
-	HANDLE handle = FindFirstFile(path, &FindFileData);
-	BOOL found = handle != INVALID_HANDLE_VALUE;
+	WIN32_FIND_DATA data;
+	HANDLE handle = FindFirstFile(path, &data);
+	BOOL found = (handle != INVALID_HANDLE_VALUE &&
+					!(data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY));
 	if (found)
 	{
-		//FindClose(&handle); this will crash
 		FindClose(handle);
 	}
 	return found;

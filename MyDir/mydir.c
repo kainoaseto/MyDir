@@ -27,7 +27,7 @@ int list__dir(char* path, BOOL longName)
 		// Copy the pattern from the path since it may contain wild cards already
 		strcpy_s(pattern, MAX_PATH, path);
 
-		if (!file_exists(pattern))
+		if (!file_exists(pattern) && !directory_exists(pattern))
 		{
 			if (strcmp(path, "") != 0 && !SetCurrentDirectory(path))
 			{
